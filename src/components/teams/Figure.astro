@@ -1,0 +1,14 @@
+---
+interface Props {
+	i: number
+}
+
+const { i } = Astro.props
+---
+
+<figure>
+	<slot name="graph" />
+	<figcaption>
+		Figure {i}. <slot />
+	</figcaption>
+</figure>

@@ -1,0 +1,119 @@
+:root {
+	--edge-color: rgb(29, 29, 29);
+	--red: rgb(236, 15, 71);
+	--green: rgb(8, 115, 83);
+	--blue: rgb(18, 64, 150);
+}
+
+.graph-sequence {
+	align-items: center;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	justify-content: space-evenly;
+	gap: 1rem;
+}
+
+.graph-container {
+	min-width: 280px;
+}
+
+.graph-container > svg {
+	display: block;
+	height: auto;
+	width: 100%;
+}
+
+.node {
+	stroke-width: 3px;
+	stroke: var(--edge-color);
+}
+
+.edge {
+	stroke-width: 3px;
+	stroke: var(--edge-color);
+}
+
+.face {
+	dominant-baseline: middle;
+	font-size: 0.64rem;
+	text-anchor: middle;
+	translate: 0px 1.4px;
+}
+
+.node-label,
+.edge-label {
+	dominant-baseline: middle;
+	font-size: 24px;
+	font-weight: 600;
+	paint-order: stroke;
+	stroke-linecap: square;
+	stroke-linejoin: miter;
+	stroke-miterlimit: 2;
+	stroke-width: 4px;
+	stroke: var(--edge-color);
+	text-anchor: middle;
+}
+
+.node-label {
+	fill: #fff;
+	font-family: monospace;
+}
+
+.edge-label {
+	fill: var(--edge-color);
+	font-family: inherit;
+	stroke-width: 8px;
+	stroke: #fff;
+}
+
+.teams-size-legend {
+	display: flex;
+	flex-direction: column;
+	row-gap: 12px;
+}
+
+.teams-size-legend > .row {
+	align-items: center;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	padding: 10px;
+	row-gap: 8px;
+	border-radius: 4px;
+}
+
+.row:nth-child(odd) {
+	background-color: rgb(243, 243, 243);
+}
+
+.variable {
+	display: flex;
+	flex-direction: row;
+	min-width: 256px;
+	column-gap: 12px;
+}
+
+.equation {
+	flex-grow: 100;
+	display: flex;
+	justify-content: center;
+}
+
+.color-indicator {
+	display: inline-block;
+	width: 32px;
+	height: 32px;
+}
+
+.red {
+	background-color: var(--red);
+}
+
+.green {
+	background-color: var(--green);
+}
+
+.blue {
+	background-color: var(--blue);
+}

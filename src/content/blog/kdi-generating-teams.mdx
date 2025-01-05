@@ -1,0 +1,371 @@
+---
+title: 'kdi: Generating Teams'
+description: 'Lorem ipsum dolor sit amet'
+pubDate: 'Jul 08 2022'
+heroImage: '/teams-1-banner.png'
+---
+
+import { COLORS, node } from '../../graph/nodes'
+import TeamsGraph from '../../components/teams/TeamsGraph.astro'
+import SimpleDiagram from '../../components/teams/SimpleDiagram.astro'
+import SizeDiagram from '../../components/teams/SizeDiagram.astro'
+import Figure from '../../components/teams/Figure.astro'
+
+import '../../styles/graph.css'
+
+### Introduction
+
+One of my side projects is a Discord bot named [kdi](https://github.com/dGrowl/kdi), built to support a community that I administrate. One of kdi's frequent responsibilities is to organize small teams for multiplayer gaming events. These events run for a few hours and, periodically, players are shuffled around so that they can have fun with lots of different teammates. In this post, I'd like to explore the thinking behind kdi's current team generation algorithm. Sample code is written in beginner-level Python, with periodic hand-waving in pursuit of clarity. Let's dive in!
+
+### Simple Approach
+
+There's an efficient algorithm available to randomly sort players into teams--just shuffle a list of names, then split it into subarrays of length `max_size`.
+
+```python
+def generate_teams(players, max_size):
+	players = shuffled(players)
+	teams = []
+	for i in range(0, len(players), max_size):
+		teams.append(players[i:i + max_size])
+	return teams
+```
+
+<Figure i={1}>
+	<SimpleDiagram slot="graph" />
+	<span>
+		A demo of calling `generate_teams` with a list of 5 players and a `max_size`
+		of 3.
+	</span>
+</Figure>
+
+However, this approach lacks a number of characteristics that kdi needs. Most importantly, we want players to have **different teammates each round**. We could repeatedly shuffle until a sufficiently scrambled teamset is found, but that would take quite a while after a few rounds. It would also be nice if our algorithm facilitated leadership via **captains spread into different teams**. Finally, if `max_size` doesn't cleanly divide `len(players)`, one team could be much smaller than the others. We'd prefer if **teams were sized as fairly as possible**. Let's figure out a better way that accomplishes these goals.
+
+### Teams Graph
+
+In order to increase teammate diversity from round-to-round, we need to remember how many times players have played with one another. We can achieve this by associating each pair of player names with a number (starting at 0), then incrementing that number when those players encounter each other.
+
+```python
+def record_matching(team):
+	for name_1, name_2 in combinations(team, 2):
+		rounds_played[name_1][name_2] += 1
+```
+
+What we've just described can be conceptualized as a [graph](<https://en.wikipedia.org/wiki/Graph_(discrete_mathematics)>), undirected and complete, with edge weights equal to the number of times their incident players have teamed up with each other.
+
+```python
+def weight(name_1, name_2):
+	return rounds_played[name_1][name_2]
+```
+
+> Undirectedness requires that our data is symmetric, i.e. `rounds_played[a][b] == rounds_played[b][a]`.
+
+<Figure i={2}>
+	<TeamsGraph
+		slot="graph"
+		node_data={[
+			node('Ana', [
+				['Bea', 2],
+				['Cal', 1],
+			]),
+			node('Bea'),
+			node('Cal'),
+		]}
+	/>
+	<span>
+		A sample team graph in which **Ana** has played with **Bea** twice and
+		**Cal** once.
+	</span>
+</Figure>
+
+With this type of graph, we can use an approach similar to [Kruskal's Minimal Spanning Tree algorithm](https://en.wikipedia.org/wiki/Kruskal%27s_algorithm) to build teams. We'll repeatedly collapse the edges with the lowest weight, combining their incident nodes to form _teams_ of players. The new node's edge weights will be the sum of the old nodes' edge weights. We'll use $w$ in math notation to refer to our weight function `weight`.
+
+<Figure i={3}>
+	<span class="equation" slot="graph">
+		$$ w(AC, B) = w(A, B) + w(C, B) $$
+	</span>
+	<div class="graph-sequence" slot="graph">
+		<TeamsGraph
+			node_data={[
+				node('Ana', [
+					['Bea', 2],
+					['Cal', 1],
+				]),
+				node('Bea', [['Cal', 3]]),
+				node('Cal'),
+			]}
+		/>
+		<TeamsGraph node_data={[node('Ana+Cal', [['Bea', 5]]), node('Bea')]} />
+	</div>
+	<span>
+		The results of collapsing the edge between **Ana** and **Cal**; $\overline
+		{AC}$ for short.
+	</span>
+</Figure>
+
+We need to update our weight function to accommodate the potentially multiple players inside each team node.
+
+```python
+def weight(team_1, team_2)
+	w = 0
+	for name_1, name_2 in product(team_1, team_2):
+		w += rounds_played[name_1][name_2]
+	return w
+```
+
+We continue collapsing edges until all of the nodes have reached a `max_size` that we specify. At that point, we'll have a set of optimal teams, informed by our historic teammate data.
+
+```python
+def generate_teams(players, max_size):
+	teams = {frozenset([name]) for name in players}
+	while optimal_pair := find_min_weight_pair(teams, max_size):
+		team_1, team_2 = optimal_pair
+		teams -= {team_1, team_2}
+		teams.add(team_1 | team_2)
+	return teams
+```
+
+### Optimized Matching
+
+Well, sort of optimal--our current algorithm can lead to bad outcomes under certain circumstances. Consider a group of 4 players splitting into 2 teams, **Ana** having played with **Bea** and **Cal** once each and never with **Dan**. The optimal teams to create are **Ana+Dan** and **Bea+Cal**, because none of these players have played together. However, there are four edges that may be selected for collapse; $\overline{AD}$, $\overline{BC}$, $\overline{CD}$, and $\overline{BD}$ all have the minimal weight of 0. Half of these choices ($\overline{BD}$ or $\overline{CD}$) lead to **Ana** playing with someone she's already played with.
+
+<Figure i={4}>
+	<div slot="graph" class="graph-sequence">
+		<TeamsGraph
+			node_data={[
+				node('Ana', [
+					['Bea', 1],
+					['Cal', 1],
+				]),
+				node('Bea'),
+				node('Cal'),
+				node('Dan'),
+			]}
+		/>
+		<TeamsGraph
+			node_data={[node('Ana+Cal', [['Bea+Dan', 1]]), node('Bea+Dan')]}
+		/>
+	</div>
+	<span>
+		A sample graph and suboptimal teamset resulting from the collapse of
+		$\overline{BD}$ followed by $\overline{AC}$.
+	</span>
+</Figure>
+
+The solution is to make each edge aware of the other edges in the graph. Plainly, our goal is that if **Ana** _doesn't_ want to play with **Bea**, **Cal** and **Dan** _will_ want to play with **Bea**. To achieve this mathematically, we subtract from each edge the sum of the weight incident upon its nodes.
+
+```python
+def weight(team_1, team_2):
+	w = 0
+	for name_1, name_2 in product(team_1, team_2):
+		w += 3 * rounds_played[name_1][name_2]
+	for name in chain(team_1, team_2):
+		w -= sum(rounds_played[name].values())
+	return w
+```
+
+> We now multiply the counts from `rounds_played[name_1][name_2]` by 3 because they get subtracted twice inside the second loop, leaving one copy.
+
+<Figure i={5}>
+	<div slot="graph" class="graph-sequence">
+		<TeamsGraph
+			node_data={[
+				node('Ana', [['Dan', -2]]),
+				node('Bea', [
+					['Cal', -2],
+					['Dan', -1],
+				]),
+				node('Cal', [['Dan', -1]]),
+				node('Dan'),
+			]}
+		/>
+		<TeamsGraph
+			node_data={[node('Ana+Dan', [['Bea+Cal', 2]]), node('Bea+Cal')]}
+		/>
+	</div>
+	<span>
+		An updated version of the graph from Figure 4 and the optimal teamset
+		resulting from the guaranteed collapses of $\overline{AD}$ and $\overline
+		{BC}$.
+	</span>
+</Figure>
+
+Revisiting our four player sample graph, $w(A, B) = 1$ and $w(A, C) = 1$ are subtracted from the other edges that involve their nodes. Now when we generate teams, the result is optimal; none of the players on these teams have with each other before. They're happy, and we're happy!
+
+### Team Leaders
+
+Next, we'll tackle the idea of "captains": players that lead the teams, typically community moderators. Captains should be separated into different teams _unless_ there are no eligible non-captains remaining to pair. We can add a large constant e.g. 100 to the weights of edges between captains. This will make our algorithm avoid collapsing those edges unless it's the only option.
+
+```python
+def weight(team_1, team_2):
+	...
+	if has_captain(team_1) and has_captain(team_2):
+		w += 100
+	return w
+```
+
+<Figure i={6}>
+	<TeamsGraph
+		slot="graph"
+		node_data={[
+			node('Ana', [['Cal', 100]]),
+			node('Bea'),
+			node('Cal'),
+			node('Dan'),
+		]}
+	/>
+	<span>A teams graph in which **Ana** and **Cal** are captains.</span>
+</Figure>
+
+A familiar problem can arise with the graph in Figure 6: if $\overline{BD}$ is selected for collapse, the captains will become the other team. We'll apply a similar fix to before, but this time we'll subtract a _smaller_ constant from the edges for which only one incident node contains a captain.
+
+```python
+def weight(team_1, team_2):
+	...
+	if has_captain(team_1) and has_captain(team_2):
+		w += 100
+	elif has_captain(team_1) or has_captain(team_2):
+		w -= 10
+	return w
+```
+
+<Figure i={7}>
+	<TeamsGraph
+		slot="graph"
+		node_data={[
+			node('Ana', [
+				['Bea', -10],
+				['Cal', 100],
+				['Dan', -10],
+			]),
+			node('Bea', [['Cal', -10]]),
+			node('Cal', [['Dan', -10]]),
+			node('Dan'),
+		]}
+	/>
+	<span>
+		An updated version of the teams graph from Figure 6, with edge weights
+		reflecting the captains' influence.
+	</span>
+</Figure>
+
+The weight for $\overline{BD}$ stays at 0, because neither **Bea** nor **Dan** are captains. Collapsing any of the edges with weight -10 will result in an optimal teamset in which the captains are split.
+
+> It's important to choose constants that are both _large_ enough to overpower the initial edge weights and _distant_ enough from each other to prohibit interference. In order to ensure these properties, we'll use 1,000 and 1,000,000 in production instead of 10 and 100.
+
+### Optimal Team Sizes
+
+Finally, let's figure out how to fairly size the teams. The simple approach effectively used the maximum team capacity as the optimal size. Floor division can tell us how many `max_size` teams can be made.
+
+```python
+def calc_optimal_teams(n_players, max_size):
+	return n_players // max_size
+```
+
+But as previously mentioned, this can lead to the creation of a single extra-small team. For example, referring to our function as `f`, `f(7, 3)` results in a 3/3/1 team size split rather than the optimal 3/2/2. `f(4, 3)` similarly results in a 3/1 split, and in this case the optimal split of 2/2 contains no teams of `max_size = 3` at all. Therefore, we need an algorithm that can optimize both the quantity _and_ capacity of our teams. This ideal algorithm needs to minimize the difference between the min and max team sizes--in fact, we want to guarantee that the difference is 1.
+
+One way to think about this problem is that there's some optimal positive integer $k$ that enables the number of players $n$ to be split into teams of sizes $k$ and $k-1$. Finding $k$, then, is equivalent to finding an integer solution to the linear equation ${ak+b(k-1)=n}$, where the coefficients $a$ and $b$ represent the number of teams that can be made of each size. Our objective is to maximize $k \leq \text{max\_size}$, so we'll just search for the correct values starting at $k=\text{max\_size}$ and working our way down.
+
+```python
+def solve_2d(x0, x1, n):
+	a = ceil(n / x0)
+	p = a * x0
+	while a > 1 and p != n:
+		a -= 1
+		p += x1 - x0
+	return a if p == n else 0
+
+def calc_optimal_teams(n_players, max_size):
+	n_large_teams = large_size = 0
+	for k in range(max_size, 0, -1):
+		if n_large_teams := solve_2d(k, k - 1, n_players):
+			large_size = k
+			break
+	return (n_large_teams, large_size)
+```
+
+We're guaranteed to find a solution $k \geq 2$, because any integer can be expressed as $2a + b$ where $b \in \lbrace 0, 1 \rbrace$. The approach is modestly efficient, with time complexity $O(\text{max\_size} \cdot n / \text{max\_size}) = O(n)$, and its output is easily cached for a particular $n$ and $\text{max\_size}$. However, there's an even better closed-form algorithm that produces the same result in $O(1)$ time. We start by calculating the total number of teams; this time, taking the _ceiling_ of $n / \text{max\_size}$ rather than the floor. The remainder and quotient of dividing $n$ by that number tells us the number of large teams and size of those teams, respectively.
+
+<Figure i={8}>
+	<SizeDiagram slot="graph" />
+	<div slot="graph" class="teams-size-legend">
+		<div class="row">
+			<div class="variable">
+				<div class="color-indicator green" />
+				`n_teams`
+			</div>
+			<div class="equation">
+				$
+					\left\lceil \dfrac{n}{\text{max\_size}} \right\rceil =
+					\left\lceil \dfrac{7}{3} \right\rceil =
+					\textcolor{#087353}{3}
+				$
+			</div>
+		</div>
+		<div class="row">
+			<div class="variable">
+				<div class="color-indicator red" />
+				`n_large_teams`
+			</div>
+			<div class="equation">
+				$n\mod \textcolor{#087353}{\text{n\_teams}} = 7\mod \textcolor{#087353}{3} = \textcolor{#ec0f47}{1}$
+			</div>
+		</div>
+		<div class="row">
+			<div class="variable">
+				<div class="color-indicator blue" />
+				`large_size`
+			</div>
+			<div class="equation">
+				$
+					\left\lceil \dfrac{n}{\textcolor{#087353}{\text{n\_teams}}} \right\rceil =
+					\left\lceil \dfrac{7}{\textcolor{#087353}{3}} \right\rceil =
+					\textcolor{#124096}{3}
+				$
+			</div>
+		</div>
+	</div>
+	<span>
+		A demo calculation of the optimal team structure for a group of 7 players and a `max_size` of 3.
+	</span>
+</Figure>
+
+```python
+def calc_optimal_teams(n_players, max_size):
+	n_teams = ceil(n_players / max_size)
+
+	n_large_teams = n_players % n_teams
+	if n_large_teams == 0:
+		return (n_teams, n_players // n_teams)
+
+	large_size = ceil(n_players / n_teams)
+	return (n_large_teams, large_size)
+```
+
+### Small Team Compensation
+
+We've made team sizing more fair, but how do we decide who gets put on small/large teams? Larger teams are typically preferred by players, so we should try to ensure that different people are put into small teams every round. We accomplish this by recording an offset to each player's edge weights according to their team size. Players on small teams become more appealing via a negative offset and vice versa.
+
+```python
+def record_matching(team, large_size):
+	...
+	for name in team:
+		offsets[name] += -2 if len(team) < large_size else 1
+		offsets[name] = clamp(offsets[name], -3, 1)
+```
+
+```python
+def weight(team_1, team_2):
+	...
+	for name in chain(team_1, team_2):
+		...
+		w += offsets[name]
+	return w
+```
+
+A few implementation details to note. The offset decreases twice as fast as it increases and is clamped to the range $[-3,1]$. This creates a "short memory"--an immediate bias in favor of players who were on small teams in the previous round. The clamping also helps ensure that players who join at different points in the event are treated equivalently (the offsets won't balloon out of control). Finally, we increase the offset even if there are no small teams in a round. This just feels fair, and helps reset the offsets of players who were previously boosted.
+
+### Conclusion
+
+We've covered a lot of ground, iterating upon our simple design to achieve the features we desired. The actual process of finding this algorithmic approach took a lot of experimentation and refinement. I was driven by the needs of the community and it's been very rewarding to see the fruits of my work--especially in cases where the simple approach would have failed my users. Using kdi regularly (see [dogfooding](https://en.wikipedia.org/wiki/Eating_your_own_dog_food)) has been very helpful in the development process, from finding inspiration for improvements to discovering embarrassing bugs _in situ_. kdi is one of my favorite projects and I hope to continue working on it for a long time.
+
+Thank you for reading. If you happen to be hiring software engineers, please reach out to me at dGrowl.github@gmail.com! Keywords: full-stack, machine learning, video games, embedded systems.

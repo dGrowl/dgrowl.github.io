@@ -1,0 +1,51 @@
+---
+import { NODE_COLORS } from '../../graph/nodes'
+---
+
+<style>
+	.face {
+		font-size: 0.64rem;
+	}
+	.line {
+		stroke-width: 1.8px;
+	}
+</style>
+<div class="graph-container">
+	<svg viewBox="0 0 200 66" xmlns="http://www.w3.org/2000/svg">
+		<polyline
+			class="line"
+			stroke={NODE_COLORS['Cal']}
+			points="
+				22,10 28,10 22,10
+				22,28 28,28 22,28
+				22,46 28,46 22,46
+			"></polyline>
+
+		<polyline
+			stroke={NODE_COLORS['Bea']}
+			class="line"
+			points="
+				 40,64  40,58  40,64
+				100,64 100,58 100,64
+				160,64 160,58 160,64
+			"
+		></polyline>
+
+		<text x="40" y="10" class="face">😃</text>
+		<circle
+			class="line"
+			cx="40"
+			cy="10"
+			r="9"
+			fill="transparent"
+			stroke={NODE_COLORS['Ana']}></circle>
+		<text x="40" y="28" class="face">😏</text>
+		<text x="40" y="46" class="face">😵</text>
+
+		<text x="100" y="28" class="face">😨</text>
+		<text x="100" y="46" class="face">😄</text>
+
+		<text x="160" y="28" class="face">😎</text>
+		<text x="160" y="46" class="face">🤠</text>
+	</svg>
+</div>
