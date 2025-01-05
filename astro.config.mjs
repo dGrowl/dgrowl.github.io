@@ -15,7 +15,7 @@ const mathjaxPlugin = () => rehypeMathjax(mathjaxOptions)
 
 // https://astro.build/config
 export default defineConfig({
-	site: 'https://example.com',
+	site: 'https://dGrowl.github.io',
 	integrations: [mdx(), sitemap()],
 	markdown: {
 		remarkPlugins: [remarkMath],
