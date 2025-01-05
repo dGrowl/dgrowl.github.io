@@ -1,8 +1,9 @@
 /** @type {import("prettier").Config} */
 export default {
-  trailingComma: "es5",
+  quoteProps: 'consistent',
   semi: false,
   singleQuote: true,
+  trailingComma: 'es5',
   useTabs: true,
   plugins: ['prettier-plugin-astro'],
   overrides: [
