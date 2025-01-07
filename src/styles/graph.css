@@ -64,7 +64,7 @@
 	fill: var(--edge-color);
 	font-family: inherit;
 	stroke-width: 8px;
-	stroke: #fff;
+	stroke: #f9f9f9;
 }
 
 .teams-size-legend {
@@ -116,4 +116,10 @@
 
 .blue {
 	background-color: var(--blue);
+}
+
+@media (max-width: 720px) {
+	.face {
+		font-size: 0.7rem !important;
+	}
 }
