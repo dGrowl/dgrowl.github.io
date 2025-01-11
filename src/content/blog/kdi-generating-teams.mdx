@@ -6,10 +6,10 @@ heroImage: '/teams-1-banner.png'
 ---
 
 import { COLORS, node } from '../../graph/nodes'
-import TeamsGraph from '../../components/teams/TeamsGraph.astro'
+import Figure from '../../components/teams/Figure.astro'
 import SimpleDiagram from '../../components/teams/SimpleDiagram.astro'
 import SizeDiagram from '../../components/teams/SizeDiagram.astro'
-import Figure from '../../components/teams/Figure.astro'
+import TeamsGraph from '../../components/teams/TeamsGraph.astro'
 
 import '../../styles/graph.css'
 
@@ -19,7 +19,7 @@ One of my side projects is a Discord bot named [kdi](https://github.com/dGrowl/k
 
 ### Simple Approach
 
-There's an efficient algorithm available to randomly sort players into teams--just shuffle a list of names, then split it into subarrays of length `max_size`.
+Let's start by generating randomized teams using a basic algorithm. We can just shuffle a list of names, then split it into subarrays of length `max_size`.
 
 ```python
 def generate_teams(players, max_size):
@@ -38,7 +38,11 @@ def generate_teams(players, max_size):
 	</span>
 </Figure>
 
-However, this approach lacks a number of characteristics that kdi needs. Most importantly, we want players to have **different teammates each round**. We could repeatedly shuffle until a sufficiently scrambled teamset is found, but that would take quite a while after a few rounds. It would also be nice if our algorithm facilitated leadership via **captains spread into different teams**. Finally, if `max_size` doesn't cleanly divide `len(players)`, one team could be much smaller than the others. We'd prefer if **teams were sized as fairly as possible**. Let's figure out a better way that accomplishes these goals.
+However, the simplicity of this approach comes with a number of undesirable characteristics. Let's develop a flexible algorithm that can accommodate three major improvements:
+
+- **Ensure that players have unique teammates each round.** Naive shuffling can lead to similar teams being generated multiple times.
+- **Add team leaders that are distributed into different groups.** It's helpful to have moderators or experienced players in each team.
+- **Make team sizes as fair as possible.** The simple approach can lead to one team being much smaller than the others.
 
 ### Teams Graph
 
@@ -72,8 +76,7 @@ def weight(name_1, name_2):
 		]}
 	/>
 	<span>
-		A sample team graph in which **Ana** has played with **Bea** twice and
-		**Cal** once.
+		A graph in which **Ana** has played with **Bea** twice and **Cal** once.
 	</span>
 </Figure>
 
@@ -146,8 +149,8 @@ Well, sort of optimal--our current algorithm can lead to bad outcomes under cert
 		/>
 	</div>
 	<span>
-		A sample graph and suboptimal teamset resulting from the collapse of
-		$\overline{BD}$ followed by $\overline{AC}$.
+		A graph and suboptimal teamset resulting from the collapse of $\overline{BD}
+		$ followed by $\overline{AC}$.
 	</span>
 </Figure>
 
@@ -184,16 +187,16 @@ def weight(team_1, team_2):
 	</div>
 	<span>
 		An updated version of the graph from Figure 4 and the optimal teamset
-		resulting from the guaranteed collapses of $\overline{AD}$ and $\overline
+		resulting from the collapses of $\overline{AD}$ and $\overline
 		{BC}$.
 	</span>
 </Figure>
 
-Revisiting our four player sample graph, $w(A, B) = 1$ and $w(A, C) = 1$ are subtracted from the other edges that involve their nodes. Now when we generate teams, the result is optimal; none of the players on these teams have with each other before. They're happy, and we're happy!
+Revisiting our four player sample graph, $w(A, B) = 1$ and $w(A, C) = 1$ are subtracted from the other edges that involve their nodes. Now when we generate teams, the result is optimal; none of the players on these teams have played with each other before. They're happy, and we're happy!
 
 ### Team Leaders
 
-Next, we'll tackle the idea of "captains": players that lead the teams, typically community moderators. Captains should be separated into different teams _unless_ there are no eligible non-captains remaining to pair. We can add a large constant e.g. 100 to the weights of edges between captains. This will make our algorithm avoid collapsing those edges unless it's the only option.
+Next, we'll tackle the idea of "captains", a.k.a. players who act as team leaders. Captains should be separated into different teams _unless_ there are no eligible non-captains remaining to pair. We can add a large constant, e.g. 100, to the weights of edges between captains to achieve the effect.
 
 ```python
 def weight(team_1, team_2):
@@ -213,7 +216,7 @@ def weight(team_1, team_2):
 			node('Dan'),
 		]}
 	/>
-	<span>A teams graph in which **Ana** and **Cal** are captains.</span>
+	<span>A graph in which **Ana** and **Cal** are captains.</span>
 </Figure>
 
 A familiar problem can arise with the graph in Figure 6: if $\overline{BD}$ is selected for collapse, the captains will become the other team. We'll apply a similar fix to before, but this time we'll subtract a _smaller_ constant from the edges for which only one incident node contains a captain.
@@ -243,8 +246,8 @@ def weight(team_1, team_2):
 		]}
 	/>
 	<span>
-		An updated version of the teams graph from Figure 6, with edge weights
-		reflecting the captains' influence.
+		An updated version of the graph from Figure 6, with edge weights that now
+		reflect the captains' influence.
 	</span>
 </Figure>
 
@@ -366,6 +369,6 @@ A few implementation details to note. The offset decreases twice as fast as it i
 
 ### Conclusion
 
-We've covered a lot of ground, iterating upon our simple design to achieve the features we desired. The actual process of finding this algorithmic approach took a lot of experimentation and refinement. I was driven by the needs of the community and it's been very rewarding to see the fruits of my work--especially in cases where the simple approach would have failed my users. Using kdi regularly (see [dogfooding](https://en.wikipedia.org/wiki/Eating_your_own_dog_food)) has been very helpful in the development process, from finding inspiration for improvements to discovering embarrassing bugs _in situ_. kdi is one of my favorite projects and I hope to continue working on it for a long time.
+We've covered a lot of ground, iterating upon our simple design to achieve the features we desired. The actual process of finding this algorithmic approach took a lot of experimentation and refinement. I was driven by the needs of the community and it's been very rewarding to see the fruits of my work--especially in cases where the simple approach would have failed my users. Using kdi regularly (a.k.a. [dogfooding](https://en.wikipedia.org/wiki/Eating_your_own_dog_food)) has been very helpful in the development process, from finding inspiration for improvements to discovering embarrassing bugs _in situ_. kdi is one of my favorite projects and I hope to continue working on it for a long time.
 
 Thank you for reading. If you happen to be hiring software engineers, please reach out to me at dGrowl.github@gmail.com! Keywords: full-stack, machine learning, video games, embedded systems.
